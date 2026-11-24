@@ -58,25 +58,39 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     steps:
-      - name: Deploy
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ github.repository_owner }}/ci-practice-config
+          token: ${{ secrets.CONFIG_REPO_TOKEN }}
+
+      - name: Bump image tag
         env:
-          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
           IMAGE: ${{ needs.build-and-push.outputs.image }}
         run: |
-          echo "Deploying $IMAGE to staging"
-          [ -n "$DEPLOY_TOKEN" ] || { echo "Missing token"; exit 1; }
-          echo "Token is set (${#DEPLOY_TOKEN} chars)"
+          sed -i "s|image: .*|image: $IMAGE|" staging/deployment.yaml
+          git diff --quiet && { echo "No change"; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(staging): deploy ${GITHUB_SHA::7}"
+          git push
 
   deploy-production:
     needs: [build-and-push, deploy-staging]
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Deploy
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ github.repository_owner }}/ci-practice-config
+          token: ${{ secrets.CONFIG_REPO_TOKEN }}
+
+      - name: Bump image tag
         env:
-          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
           IMAGE: ${{ needs.build-and-push.outputs.image }}
         run: |
-          echo "Deploying $IMAGE to production"
-          [ -n "$DEPLOY_TOKEN" ] || { echo "Missing token"; exit 1; }
-          echo "Token is set (${#DEPLOY_TOKEN} chars)"          
+          sed -i "s|image: .*|image: $IMAGE|" production/deployment.yaml
+          git diff --quiet && { echo "No change"; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(production): deploy ${GITHUB_SHA::7}"
+          git push        
