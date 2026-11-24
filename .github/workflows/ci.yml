@@ -32,11 +32,16 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
     steps:
       - uses: actions/checkout@v5
 
       - name: Set image name
-        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+        id: meta
+        run: |
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -48,3 +53,30 @@ jobs:
         run: |
           docker push "$IMAGE:${{ github.sha }}"
           docker push "$IMAGE:latest"
+  deploy-staging:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Deploy
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          IMAGE: ${{ needs.build-and-push.outputs.image }}
+        run: |
+          echo "Deploying $IMAGE to staging"
+          [ -n "$DEPLOY_TOKEN" ] || { echo "Missing token"; exit 1; }
+          echo "Token is set (${#DEPLOY_TOKEN} chars)"
+
+  deploy-production:
+    needs: [build-and-push, deploy-staging]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          IMAGE: ${{ needs.build-and-push.outputs.image }}
+        run: |
+          echo "Deploying $IMAGE to production"
+          [ -n "$DEPLOY_TOKEN" ] || { echo "Missing token"; exit 1; }
+          echo "Token is set (${#DEPLOY_TOKEN} chars)"          
